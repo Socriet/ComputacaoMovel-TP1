@@ -1,6 +1,73 @@
+import pyperclip  
 from dataclasses import field
+from typing import Callable
+from datetime import datetime
 import flet as ft
 from sympy import sympify, N, sin, cos, tan, sqrt
+
+
+@ft.control
+class HistoryItem(ft.Container):
+    index: int = 0
+    expression: str = ""
+    result: str = ""
+    timestamp: str = ""
+    on_delete: Callable[["HistoryItem"], None] = field(default=lambda task: None)
+
+    def init(self):
+        self.padding = 10
+     
+        self.border = ft.Border(bottom=ft.BorderSide(1, ft.Colors.WHITE12))
+        
+        self.content = ft.Row(
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            controls=[
+        
+                ft.Column(
+                    spacing=2,
+                    controls=[
+                        ft.Text(f"#{self.index} - {self.timestamp}", size=10, color=ft.Colors.WHITE54),
+                        ft.Text(self.expression, size=12, color=ft.Colors.WHITE70),
+                        ft.Text(f"= {self.result}", size=16, color=ft.Colors.ORANGE, weight=ft.FontWeight.BOLD),
+                    ]
+                ),
+              
+                ft.Row(
+                    controls=[
+                        ft.IconButton(
+                            icon=ft.Icons.COPY, 
+                            icon_size=18, 
+                            tooltip="Copy Result", 
+                            on_click=self.copy_clicked
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.DELETE_OUTLINE, 
+                            icon_size=18, 
+                            icon_color=ft.Colors.RED_400,
+                            tooltip="Delete", 
+                            on_click=self.delete_clicked
+                        ),
+                    ]
+                )
+            ]
+        )
+
+    def copy_clicked(self, e):
+        
+        try:
+            pyperclip.copy(self.result)
+            e.page.snack_bar = ft.SnackBar(ft.Text(f"Copied: {self.result}"))
+            e.page.snack_bar.open = True
+            e.page.update()
+        except Exception as ex:
+            print(f"Clipboard error: {ex}")
+            e.control.icon_color = ft.Colors.RED
+            e.control.tooltip = "Clipboard failed"
+            e.control.update()
+
+    def delete_clicked(self, e):
+        self.on_delete(self)
+
 
 @ft.control
 class CalcButton(ft.Button):
@@ -26,33 +93,27 @@ class SciButton(CalcButton):
     bgcolor: ft.Colors = ft.Colors.BLUE_GREY_900
     color: ft.Colors = ft.Colors.WHITE
 
+
 class CalculatorApp(ft.Container):
     def __init__(self):
         super().__init__()
         self.reset()
+        self.history_counter = 1 
         
         self.width = 350
         self.bgcolor = ft.Colors.BLACK
         self.border_radius = ft.BorderRadius.all(20)
         self.padding = 15
         
-        # Small text for expression history
+     
         self.expression_display = ft.Text(
-            value="", 
-            color=ft.Colors.WHITE54, 
-            size=15, 
-            text_align=ft.TextAlign.RIGHT
+            value="", color=ft.Colors.WHITE54, size=15, text_align=ft.TextAlign.RIGHT
         )
-        
-        # Main result text
         self.result = ft.Text(value="0", color=ft.Colors.WHITE, size=40, text_align=ft.TextAlign.RIGHT)
 
-        self.content = ft.Column(
+      
+        self.keypad_container = ft.Column(
             controls=[
-                ft.Row(controls=[self.expression_display], alignment=ft.MainAxisAlignment.END),
-                ft.Row(controls=[self.result], alignment=ft.MainAxisAlignment.END),
-                
-                # [ROW 1] Scientific
                 ft.Row(
                     controls=[
                         SciButton(content="sin", on_click=self.button_clicked),
@@ -61,8 +122,6 @@ class CalculatorApp(ft.Container):
                         SciButton(content="√", on_click=self.button_clicked),
                     ]
                 ),
-                
-                # [ROW 2] Parentheses & Edit
                 ft.Row(
                     controls=[
                         SciButton(content="(", on_click=self.button_clicked),
@@ -71,8 +130,6 @@ class CalculatorApp(ft.Container):
                         ExtraActionButton(content="⬅", on_click=self.button_clicked),
                     ]
                 ),
-
-                # [ROW 3] Standard Operators
                 ft.Row(
                     controls=[
                         ExtraActionButton(content="AC", on_click=self.button_clicked),
@@ -81,8 +138,6 @@ class CalculatorApp(ft.Container):
                         ActionButton(content="/", on_click=self.button_clicked),
                     ]
                 ),
-                
-                # [ROW 4] 7-9
                 ft.Row(
                     controls=[
                         DigitButton(content="7", on_click=self.button_clicked),
@@ -91,8 +146,6 @@ class CalculatorApp(ft.Container):
                         ActionButton(content="*", on_click=self.button_clicked),
                     ]
                 ),
-                
-                # [ROW 5] 4-6
                 ft.Row(
                     controls=[
                         DigitButton(content="4", on_click=self.button_clicked),
@@ -101,8 +154,6 @@ class CalculatorApp(ft.Container):
                         ActionButton(content="-", on_click=self.button_clicked),
                     ]
                 ),
-                
-                # [ROW 6] 1-3
                 ft.Row(
                     controls=[
                         DigitButton(content="1", on_click=self.button_clicked),
@@ -111,8 +162,6 @@ class CalculatorApp(ft.Container):
                         ActionButton(content="+", on_click=self.button_clicked),
                     ]
                 ),
-                
-                # [ROW 7] 0, ., =
                 ft.Row(
                     controls=[
                         DigitButton(content="0", expand=2, on_click=self.button_clicked),
@@ -123,7 +172,75 @@ class CalculatorApp(ft.Container):
             ]
         )
 
-    # Helper: Adds spaces to numbers (e.g. 1 000 000)
+       
+        self.history_list = ft.Column(scroll=ft.ScrollMode.AUTO, height=400)
+        self.history_container = ft.Container(
+            visible=False, 
+            content=ft.Column(
+                controls=[
+                    ft.Text("Calculation History", color=ft.Colors.WHITE, size=20, weight=ft.FontWeight.BOLD),
+                    ft.Divider(color=ft.Colors.WHITE24),
+                    self.history_list
+                ]
+            )
+        )
+
+   
+        self.content = ft.Column(
+            controls=[
+             
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Container(width=40), 
+                        ft.IconButton(
+                            icon=ft.Icons.HISTORY, 
+                            icon_color=ft.Colors.ORANGE,
+                            tooltip="Show/Hide History",
+                            on_click=self.toggle_history
+                        )
+                    ]
+                ),
+                
+                ft.Row(controls=[self.expression_display], alignment=ft.MainAxisAlignment.END),
+                ft.Row(controls=[self.result], alignment=ft.MainAxisAlignment.END),
+                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                
+                
+                self.keypad_container,
+                self.history_container
+            ]
+        )
+
+    def toggle_history(self, e):
+        is_history_visible = self.history_container.visible
+        self.history_container.visible = not is_history_visible
+        self.keypad_container.visible = is_history_visible
+        
+        e.control.icon = ft.Icons.CALCULATE if not is_history_visible else ft.Icons.HISTORY
+        self.update()
+
+    def add_history_entry(self, expression, result):
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        item = HistoryItem(
+            index=self.history_counter,
+            timestamp=now,
+            expression=expression,
+            result=result,
+            on_delete=self.delete_history_item
+        )
+        
+        self.history_list.controls.insert(0, item)
+        self.history_counter += 1
+        
+        if len(self.history_list.controls) > 10:
+            self.history_list.controls.pop()
+
+    def delete_history_item(self, task):
+        self.history_list.controls.remove(task)
+        self.update()
+
     def format_thousands(self, value):
         try:
             clean_val = str(value).replace(" ", "")
@@ -138,86 +255,63 @@ class CalculatorApp(ft.Container):
 
     def button_clicked(self, e):
         data = e.control.content
-        print(f"Button clicked = {data}")
-
-        # --- CLEAR & RESET ---
+        
         if data == "AC":
             self.reset()
-            
         elif data == "CE": 
             self.result.value = "0"
-
         elif data == "⬅": 
             current_val = str(self.result.value)
             if len(current_val) > 1:
                 self.result.value = self.format_thousands(current_val[:-1])
             else:
                 self.result.value = "0"
-
-        # --- DIGITS ---
+        
         elif data in ("1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "."):
             clean_current = str(self.result.value).replace(" ", "")
-            
             if clean_current == "0" or self.new_operand:
                 clean_current = data
                 self.new_operand = False
             else:
                 clean_current = clean_current + data
-            
             self.result.value = self.format_thousands(clean_current)
 
-        # --- SCIENTIFIC FUNCTIONS ---
         elif data in ("sin", "cos", "tan", "√"):
             func_map = {"√": "sqrt"}
             func_name = func_map.get(data, data)
-            
-            # Start a function group
             self.current_expression += f"{func_name}("
             self.expression_display.value = self.current_expression
             self.new_operand = True
 
-        # --- PARENTHESES ---
         elif data in ("(", ")"):
             clean_current = str(self.result.value).replace(" ", "")
-            
             if data == "(":
                 self.current_expression += "("
                 self.new_operand = True
             elif data == ")":
-                # Check if we just closed a group to avoid double-adding numbers
                 if self.current_expression.endswith(")"):
                      self.current_expression += ")"
                 else:
                      self.current_expression += clean_current + ")"
-                
                 self.new_operand = True
-                
             self.expression_display.value = self.current_expression
 
-        # --- OPERATORS ---
         elif data in ("+", "-", "*", "/"):
             clean_current = str(self.result.value).replace(" ", "")
-            
-            # If expression ends in ')', just add operator, don't add the number on screen
             if self.current_expression.endswith(")"):
                 self.current_expression += data
             else:
                 self.current_expression += clean_current + data
-                
             self.expression_display.value = self.current_expression
             self.new_operand = True 
 
-        # --- EQUALS ---
         elif data == "=":
             clean_current = str(self.result.value).replace(" ", "")
-            
-            # If expression ends in ')', use it as is. Otherwise add the last number.
             if self.current_expression.endswith(")"):
                 final_expression = self.current_expression
             else:
                 final_expression = self.current_expression + clean_current
             
-            # Auto-balance parentheses
             open_count = final_expression.count("(")
             close_count = final_expression.count(")")
             final_expression += ")" * (open_count - close_count)
@@ -225,7 +319,6 @@ class CalculatorApp(ft.Container):
             self.expression_display.value = final_expression + "="
             self.calculate_result(final_expression)
             
-            # Reset history but keep result
             self.current_expression = ""
             self.new_operand = True
 
@@ -257,7 +350,12 @@ class CalculatorApp(ft.Container):
             expr = sympify(expression)
             result_val = N(expr)
             final_val = self.format_number(float(result_val))
-            self.result.value = self.format_thousands(final_val)
+            formatted_result = self.format_thousands(final_val)
+            
+           
+            self.add_history_entry(expression, formatted_result)
+            
+            self.result.value = formatted_result
             
         except Exception as e:
             print(f"Error: {e}")
@@ -271,7 +369,7 @@ class CalculatorApp(ft.Container):
         if hasattr(self, 'expression_display'): self.expression_display.value = ""
 
 def main(page: ft.Page):
-    page.title = "Scientific Calc"
+    page.title = "Scientific Calc with History"
     page.bgcolor = ft.Colors.BLACK
     page.scroll = "adaptive"
     
