@@ -1,11 +1,11 @@
-import pyperclip  
+import pyperclip 
 from dataclasses import field
 from typing import Callable
 from datetime import datetime
 import flet as ft
 from sympy import sympify, N, sin, cos, tan, sqrt
 
-
+# HISTORY ITEM CLASS
 @ft.control
 class HistoryItem(ft.Container):
     index: int = 0
@@ -16,13 +16,12 @@ class HistoryItem(ft.Container):
 
     def init(self):
         self.padding = 10
-     
         self.border = ft.Border(bottom=ft.BorderSide(1, ft.Colors.WHITE12))
         
         self.content = ft.Row(
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             controls=[
-        
+                # Left side: Index and Data
                 ft.Column(
                     spacing=2,
                     controls=[
@@ -31,7 +30,7 @@ class HistoryItem(ft.Container):
                         ft.Text(f"= {self.result}", size=16, color=ft.Colors.ORANGE, weight=ft.FontWeight.BOLD),
                     ]
                 ),
-              
+                # Right side: Actions (Copy, Delete)
                 ft.Row(
                     controls=[
                         ft.IconButton(
@@ -53,7 +52,6 @@ class HistoryItem(ft.Container):
         )
 
     def copy_clicked(self, e):
-        
         try:
             pyperclip.copy(self.result)
             e.page.snack_bar = ft.SnackBar(ft.Text(f"Copied: {self.result}"))
@@ -61,6 +59,7 @@ class HistoryItem(ft.Container):
             e.page.update()
         except Exception as ex:
             print(f"Clipboard error: {ex}")
+            # Visual feedback if something goes wrong
             e.control.icon_color = ft.Colors.RED
             e.control.tooltip = "Clipboard failed"
             e.control.update()
@@ -68,7 +67,7 @@ class HistoryItem(ft.Container):
     def delete_clicked(self, e):
         self.on_delete(self)
 
-
+# BUTTON CLASSES
 @ft.control
 class CalcButton(ft.Button):
     expand: int = field(default_factory=lambda: 1)
@@ -93,7 +92,7 @@ class SciButton(CalcButton):
     bgcolor: ft.Colors = ft.Colors.BLUE_GREY_900
     color: ft.Colors = ft.Colors.WHITE
 
-
+# MAIN APP CLASS
 class CalculatorApp(ft.Container):
     def __init__(self):
         super().__init__()
@@ -105,13 +104,13 @@ class CalculatorApp(ft.Container):
         self.border_radius = ft.BorderRadius.all(20)
         self.padding = 15
         
-     
+        # 1. DISPLAYS
         self.expression_display = ft.Text(
             value="", color=ft.Colors.WHITE54, size=15, text_align=ft.TextAlign.RIGHT
         )
         self.result = ft.Text(value="0", color=ft.Colors.WHITE, size=40, text_align=ft.TextAlign.RIGHT)
 
-      
+        # 2. KEYPAD LAYOUT
         self.keypad_container = ft.Column(
             controls=[
                 ft.Row(
@@ -172,7 +171,7 @@ class CalculatorApp(ft.Container):
             ]
         )
 
-       
+        # 3. HISTORY VIEW
         self.history_list = ft.Column(scroll=ft.ScrollMode.AUTO, height=400)
         self.history_container = ft.Container(
             visible=False, 
@@ -185,10 +184,10 @@ class CalculatorApp(ft.Container):
             )
         )
 
-   
+        # 4. MAIN LAYOUT
         self.content = ft.Column(
             controls=[
-             
+                # Top Bar with History Toggle
                 ft.Row(
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     controls=[
@@ -201,12 +200,12 @@ class CalculatorApp(ft.Container):
                         )
                     ]
                 ),
-                
+                # Display Area
                 ft.Row(controls=[self.expression_display], alignment=ft.MainAxisAlignment.END),
                 ft.Row(controls=[self.result], alignment=ft.MainAxisAlignment.END),
                 ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                 
-                
+                # Switchable Content
                 self.keypad_container,
                 self.history_container
             ]
@@ -352,7 +351,7 @@ class CalculatorApp(ft.Container):
             final_val = self.format_number(float(result_val))
             formatted_result = self.format_thousands(final_val)
             
-           
+            # Add to history
             self.add_history_entry(expression, formatted_result)
             
             self.result.value = formatted_result
