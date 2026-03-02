@@ -8,7 +8,6 @@ from datetime import datetime
 import flet as ft
 from sympy import sympify, N, sin, cos, tan, sqrt
 
-
 @ft.controlC
 class HistoryItem(ft.Container):
     index: int = 0
@@ -67,7 +66,6 @@ class HistoryItem(ft.Container):
     def delete_clicked(self, e):
         self.on_delete(self)
 
-
 @ft.control
 class CalcButton(ft.Button):
     expand: int = field(default_factory=lambda: 1)
@@ -92,13 +90,11 @@ class SciButton(CalcButton):
     bgcolor: ft.Colors = ft.Colors.BLUE_GREY_900
     color: ft.Colors = ft.Colors.WHITE
 
-
 class CalculatorApp(ft.Container):
     def __init__(self):
         super().__init__()
         self.reset()
         self.history_counter = 1
-    
         self.history_data = [] 
         
         self.width = 350
@@ -191,11 +187,11 @@ class CalculatorApp(ft.Container):
             ]
         )
 
-   
+  
     def did_mount(self):
         self.load_history_data()
 
-    
+
     def save_history_data(self):
         
         if self.page:
@@ -204,10 +200,10 @@ class CalculatorApp(ft.Container):
             except Exception:
                 pass 
 
-       
+    
         try:
             con = duckdb.connect()
-           
+          
             con.execute("CREATE OR REPLACE TABLE history (index INTEGER, timestamp VARCHAR, expression VARCHAR, result VARCHAR)")
             
             
@@ -215,13 +211,13 @@ class CalculatorApp(ft.Container):
                 con.execute("INSERT INTO history VALUES (?, ?, ?, ?)", 
                             [item['index'], item['timestamp'], item['expression'], item['result']])
             
-            
+         
             con.execute("COPY history TO 'history.parquet' (FORMAT PARQUET)")
             con.close()
         except Exception as e:
             print(f"DB Error: {e}")
 
-  
+    
     def load_history_data(self):
         loaded_data = []
         
@@ -229,11 +225,11 @@ class CalculatorApp(ft.Container):
         if os.path.exists("history.parquet"):
             try:
                 con = duckdb.connect()
-             
+              
                 result = con.execute("SELECT * FROM 'history.parquet' ORDER BY index ASC").fetchall()
                 con.close()
                 
-                
+               
                 for row in result:
                     loaded_data.append({
                         "index": row[0],
@@ -252,20 +248,20 @@ class CalculatorApp(ft.Container):
             except Exception:
                 pass
 
-       
+      
         if loaded_data:
             self.history_data = loaded_data
             
-           
+          
             self.history_list.controls.clear()
             max_index = 0
             
-            
+         
             for item in self.history_data:
                 if item['index'] > max_index:
                     max_index = item['index']
                 
-                
+             
                 history_item = HistoryItem(
                     index=item['index'],
                     timestamp=item['timestamp'],
@@ -289,16 +285,16 @@ class CalculatorApp(ft.Container):
     def add_history_entry(self, expression, result):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-       
+     
         entry_data = {
             "index": self.history_counter,
             "timestamp": now,
             "expression": expression,
             "result": result
         }
-        self.history_data.append(entry_data) 
+        self.history_data.append(entry_data)
         
-    
+  
         item = HistoryItem(
             index=self.history_counter,
             timestamp=now,
@@ -309,19 +305,22 @@ class CalculatorApp(ft.Container):
         self.history_list.controls.insert(0, item)
         self.history_counter += 1
         
- 
+     
         if len(self.history_list.controls) > 10:
             self.history_list.controls.pop()
+          
             if self.history_data:
                 self.history_data.pop(0)
 
+      
         self.save_history_data()
 
     def delete_history_item(self, task_control):
         self.history_list.controls.remove(task_control)
-        # Remove from data list
+    
         self.history_data = [d for d in self.history_data if d['index'] != task_control.index]
         self.update()
+    
         self.save_history_data()
 
     def format_thousands(self, value):
@@ -440,17 +439,18 @@ def main(page: ft.Page):
     page.bgcolor = ft.Colors.BLACK
     page.scroll = "adaptive"
 
-
+  
     def window_event(e):
         if e.data == "close":
             os._exit(0)
 
     page.window_prevent_close = True
     page.on_window_event = window_event
-
+    
     
     calc = CalculatorApp()
     page.add(calc)
 
 if __name__ == "__main__":
+    
     ft.run(main)
