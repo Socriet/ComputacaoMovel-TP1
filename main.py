@@ -8,7 +8,8 @@ from datetime import datetime
 import flet as ft
 from sympy import sympify, N, sin, cos, tan, sqrt
 
-@ft.controlC
+#HISTORY ITEM CLASS 
+@ft.control
 class HistoryItem(ft.Container):
     index: int = 0
     expression: str = ""
@@ -66,6 +67,7 @@ class HistoryItem(ft.Container):
     def delete_clicked(self, e):
         self.on_delete(self)
 
+#BUTTON CLASSES 
 @ft.control
 class CalcButton(ft.Button):
     expand: int = field(default_factory=lambda: 1)
@@ -90,6 +92,7 @@ class SciButton(CalcButton):
     bgcolor: ft.Colors = ft.Colors.BLUE_GREY_900
     color: ft.Colors = ft.Colors.WHITE
 
+#MAIN APP CLASS
 class CalculatorApp(ft.Container):
     def __init__(self):
         super().__init__()
@@ -114,6 +117,7 @@ class CalculatorApp(ft.Container):
                     SciButton(content="cos", on_click=self.button_clicked),
                     SciButton(content="tan", on_click=self.button_clicked),
                     SciButton(content="√", on_click=self.button_clicked),
+                    SciButton(content="^", on_click=self.button_clicked), # Power button
                 ]),
                 ft.Row(controls=[
                     SciButton(content="(", on_click=self.button_clicked),
@@ -170,7 +174,13 @@ class CalculatorApp(ft.Container):
                 ft.Row(
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     controls=[
-                        ft.Container(width=40), 
+                        # Theme Toggle Button
+                        ft.IconButton(
+                            icon=ft.Icons.LIGHT_MODE, 
+                            icon_color=ft.Colors.WHITE,
+                            tooltip="Toggle Theme",
+                            on_click=self.toggle_theme
+                        ), 
                         ft.IconButton(
                             icon=ft.Icons.HISTORY, 
                             icon_color=ft.Colors.ORANGE,
@@ -187,49 +197,34 @@ class CalculatorApp(ft.Container):
             ]
         )
 
-  
     def did_mount(self):
         self.load_history_data()
 
-
     def save_history_data(self):
-        
         if self.page:
             try:
                 self.page.client_storage.set("calc_history", self.history_data)
             except Exception:
                 pass 
 
-    
         try:
             con = duckdb.connect()
-          
             con.execute("CREATE OR REPLACE TABLE history (index INTEGER, timestamp VARCHAR, expression VARCHAR, result VARCHAR)")
-            
-            
             for item in self.history_data:
                 con.execute("INSERT INTO history VALUES (?, ?, ?, ?)", 
                             [item['index'], item['timestamp'], item['expression'], item['result']])
-            
-         
             con.execute("COPY history TO 'history.parquet' (FORMAT PARQUET)")
             con.close()
         except Exception as e:
             print(f"DB Error: {e}")
 
-    
     def load_history_data(self):
         loaded_data = []
-        
-       
         if os.path.exists("history.parquet"):
             try:
                 con = duckdb.connect()
-              
                 result = con.execute("SELECT * FROM 'history.parquet' ORDER BY index ASC").fetchall()
                 con.close()
-                
-               
                 for row in result:
                     loaded_data.append({
                         "index": row[0],
@@ -240,7 +235,6 @@ class CalculatorApp(ft.Container):
             except Exception as e:
                 print(f"Parquet Load Error: {e}")
 
-       
         if not loaded_data and self.page:
             try:
                 if self.page.client_storage.contains_key("calc_history"):
@@ -248,20 +242,13 @@ class CalculatorApp(ft.Container):
             except Exception:
                 pass
 
-      
         if loaded_data:
             self.history_data = loaded_data
-            
-          
             self.history_list.controls.clear()
             max_index = 0
-            
-         
             for item in self.history_data:
                 if item['index'] > max_index:
                     max_index = item['index']
-                
-             
                 history_item = HistoryItem(
                     index=item['index'],
                     timestamp=item['timestamp'],
@@ -269,9 +256,7 @@ class CalculatorApp(ft.Container):
                     result=item['result'],
                     on_delete=self.delete_history_item
                 )
-              
                 self.history_list.controls.insert(0, history_item)
-            
             self.history_counter = max_index + 1
             self.update()
 
@@ -282,10 +267,26 @@ class CalculatorApp(ft.Container):
         e.control.icon = ft.Icons.CALCULATE if not is_history_visible else ft.Icons.HISTORY
         self.update()
 
+    def toggle_theme(self, e):
+        if self.page.theme_mode == ft.ThemeMode.DARK:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+            self.bgcolor = ft.Colors.BLUE_GREY_50
+            e.control.icon = ft.Icons.DARK_MODE
+            e.control.icon_color = ft.Colors.BLACK
+            self.expression_display.color = ft.Colors.BLACK54
+            self.result.color = ft.Colors.BLACK
+        else:
+            self.page.theme_mode = ft.ThemeMode.DARK
+            self.bgcolor = ft.Colors.BLACK
+            e.control.icon = ft.Icons.LIGHT_MODE
+            e.control.icon_color = ft.Colors.WHITE
+            self.expression_display.color = ft.Colors.WHITE54
+            self.result.color = ft.Colors.WHITE
+        self.page.update()
+        self.update()
+
     def add_history_entry(self, expression, result):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-     
         entry_data = {
             "index": self.history_counter,
             "timestamp": now,
@@ -293,8 +294,6 @@ class CalculatorApp(ft.Container):
             "result": result
         }
         self.history_data.append(entry_data)
-        
-  
         item = HistoryItem(
             index=self.history_counter,
             timestamp=now,
@@ -305,22 +304,16 @@ class CalculatorApp(ft.Container):
         self.history_list.controls.insert(0, item)
         self.history_counter += 1
         
-     
         if len(self.history_list.controls) > 10:
             self.history_list.controls.pop()
-          
             if self.history_data:
                 self.history_data.pop(0)
-
-      
         self.save_history_data()
 
     def delete_history_item(self, task_control):
         self.history_list.controls.remove(task_control)
-    
         self.history_data = [d for d in self.history_data if d['index'] != task_control.index]
         self.update()
-    
         self.save_history_data()
 
     def format_thousands(self, value):
@@ -336,7 +329,9 @@ class CalculatorApp(ft.Container):
             return value
 
     def button_clicked(self, e):
-        data = e.control.content
+        self.handle_input(e.control.content)
+
+    def handle_input(self, data):
         if data == "AC":
             self.reset()
         elif data == "CE": 
@@ -361,16 +356,16 @@ class CalculatorApp(ft.Container):
             self.current_expression += f"{func_name}("
             self.expression_display.value = self.current_expression
             self.new_operand = True
-        elif data in ("(", ")"):
+        elif data in ("(", ")", "^"):
             clean_current = str(self.result.value).replace(" ", "")
             if data == "(":
                 self.current_expression += "("
                 self.new_operand = True
-            elif data == ")":
+            elif data in (")", "^"):
                 if self.current_expression.endswith(")"):
-                     self.current_expression += ")"
+                     self.current_expression += data
                 else:
-                     self.current_expression += clean_current + ")"
+                     self.current_expression += clean_current + data
                 self.new_operand = True
             self.expression_display.value = self.current_expression
         elif data in ("+", "-", "*", "/"):
@@ -417,7 +412,8 @@ class CalculatorApp(ft.Container):
 
     def calculate_result(self, expression):
         try:
-            expr = sympify(expression)
+            safe_expr = expression.replace("^", "**")
+            expr = sympify(safe_expr)
             result_val = N(expr)
             final_val = self.format_number(float(result_val))
             formatted_result = self.format_thousands(final_val)
@@ -434,12 +430,13 @@ class CalculatorApp(ft.Container):
         if hasattr(self, 'result'): self.result.value = "0"
         if hasattr(self, 'expression_display'): self.expression_display.value = ""
 
+
 def main(page: ft.Page):
     page.title = "Calc Pro with DuckDB"
     page.bgcolor = ft.Colors.BLACK
+    page.theme_mode = ft.ThemeMode.DARK
     page.scroll = "adaptive"
 
-  
     def window_event(e):
         if e.data == "close":
             os._exit(0)
@@ -447,10 +444,39 @@ def main(page: ft.Page):
     page.window_prevent_close = True
     page.on_window_event = window_event
     
-    
     calc = CalculatorApp()
+    
+    def on_keyboard(e: ft.KeyboardEvent):
+        val = e.key
+        
+        if e.shift:
+            shift_map = {
+                "8": "*",
+                "=": "+",
+                "+": "+", 
+                "6": "^",
+                "9": "(",
+                "0": ")"
+            }
+            if e.key in shift_map:
+                val = shift_map[e.key]
+                
+        key_map = {
+            "Enter": "=", 
+            "Backspace": "⬅", 
+            "Escape": "AC", 
+            "Delete": "CE"
+        }
+        if val in key_map:
+            val = key_map[val]
+            
+        valid_inputs = ["0","1","2","3","4","5","6","7","8","9",".","+","-","*","/","(",")","=","⬅","AC","CE","^"]
+        if val in valid_inputs:
+            calc.handle_input(val)
+            page.update()
+
+    page.on_keyboard_event = on_keyboard
     page.add(calc)
 
 if __name__ == "__main__":
-    
     ft.run(main)
