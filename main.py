@@ -1,14 +1,12 @@
 import os
-import sys
 import duckdb
 import pyperclip
 from dataclasses import field
 from typing import Callable
 from datetime import datetime
 import flet as ft
-from sympy import sympify, N, sin, cos, tan, sqrt
-
-@ft.controlC
+from sympy import sympify, N, sin, cos, tan, sqrt, pi, E, log
+@ft.control
 class HistoryItem(ft.Container):
     index: int = 0
     expression: str = ""
@@ -96,8 +94,7 @@ class CalculatorApp(ft.Container):
         self.reset()
         self.history_counter = 1
         self.history_data = [] 
-        
-        self.width = 350
+        self.width = 430 
         self.bgcolor = ft.Colors.BLACK
         self.border_radius = ft.BorderRadius.all(20)
         self.padding = 15
@@ -110,45 +107,49 @@ class CalculatorApp(ft.Container):
         self.keypad_container = ft.Column(
             controls=[
                 ft.Row(controls=[
-                    SciButton(content="sin", on_click=self.button_clicked),
-                    SciButton(content="cos", on_click=self.button_clicked),
-                    SciButton(content="tan", on_click=self.button_clicked),
+                    SciButton(content="π", on_click=self.button_clicked),
+                    SciButton(content="e", on_click=self.button_clicked),
+                    SciButton(content="ln", on_click=self.button_clicked),
+                    SciButton(content="^", on_click=self.button_clicked), 
                     SciButton(content="√", on_click=self.button_clicked),
                 ]),
                 ft.Row(controls=[
+                    SciButton(content="sin", on_click=self.button_clicked),
+                    SciButton(content="cos", on_click=self.button_clicked),
+                    SciButton(content="tan", on_click=self.button_clicked),
                     SciButton(content="(", on_click=self.button_clicked),
                     SciButton(content=")", on_click=self.button_clicked),
-                    ExtraActionButton(content="CE", on_click=self.button_clicked),
-                    ExtraActionButton(content="⬅", on_click=self.button_clicked),
                 ]),
                 ft.Row(controls=[
                     ExtraActionButton(content="AC", on_click=self.button_clicked),
-                    ExtraActionButton(content="+/-", on_click=self.button_clicked),
+                    ExtraActionButton(content="CE", on_click=self.button_clicked),
                     ExtraActionButton(content="%", on_click=self.button_clicked),
+                    ExtraActionButton(content="⬅", on_click=self.button_clicked),
                     ActionButton(content="/", on_click=self.button_clicked),
                 ]),
                 ft.Row(controls=[
                     DigitButton(content="7", on_click=self.button_clicked),
                     DigitButton(content="8", on_click=self.button_clicked),
                     DigitButton(content="9", on_click=self.button_clicked),
+                    ExtraActionButton(content="+/-", on_click=self.button_clicked),
                     ActionButton(content="*", on_click=self.button_clicked),
                 ]),
                 ft.Row(controls=[
                     DigitButton(content="4", on_click=self.button_clicked),
                     DigitButton(content="5", on_click=self.button_clicked),
                     DigitButton(content="6", on_click=self.button_clicked),
+                    DigitButton(content="0", on_click=self.button_clicked), 
                     ActionButton(content="-", on_click=self.button_clicked),
                 ]),
                 ft.Row(controls=[
                     DigitButton(content="1", on_click=self.button_clicked),
                     DigitButton(content="2", on_click=self.button_clicked),
                     DigitButton(content="3", on_click=self.button_clicked),
+                    DigitButton(content=".", on_click=self.button_clicked),
                     ActionButton(content="+", on_click=self.button_clicked),
                 ]),
                 ft.Row(controls=[
-                    DigitButton(content="0", expand=2, on_click=self.button_clicked),
-                    DigitButton(content=".", on_click=self.button_clicked),
-                    ActionButton(content="=", on_click=self.button_clicked),
+                    ActionButton(content="=", expand=5, on_click=self.button_clicked), 
                 ]),
             ]
         )
@@ -170,7 +171,12 @@ class CalculatorApp(ft.Container):
                 ft.Row(
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     controls=[
-                        ft.Container(width=40), 
+                        ft.IconButton(
+                            icon=ft.Icons.LIGHT_MODE, 
+                            icon_color=ft.Colors.WHITE,
+                            tooltip="Toggle Theme",
+                            on_click=self.toggle_theme
+                        ), 
                         ft.IconButton(
                             icon=ft.Icons.HISTORY, 
                             icon_color=ft.Colors.ORANGE,
@@ -187,49 +193,34 @@ class CalculatorApp(ft.Container):
             ]
         )
 
-  
     def did_mount(self):
         self.load_history_data()
 
-
     def save_history_data(self):
-        
         if self.page:
             try:
                 self.page.client_storage.set("calc_history", self.history_data)
             except Exception:
                 pass 
 
-    
         try:
             con = duckdb.connect()
-          
             con.execute("CREATE OR REPLACE TABLE history (index INTEGER, timestamp VARCHAR, expression VARCHAR, result VARCHAR)")
-            
-            
             for item in self.history_data:
                 con.execute("INSERT INTO history VALUES (?, ?, ?, ?)", 
                             [item['index'], item['timestamp'], item['expression'], item['result']])
-            
-         
             con.execute("COPY history TO 'history.parquet' (FORMAT PARQUET)")
             con.close()
         except Exception as e:
             print(f"DB Error: {e}")
 
-    
     def load_history_data(self):
         loaded_data = []
-        
-       
         if os.path.exists("history.parquet"):
             try:
                 con = duckdb.connect()
-              
                 result = con.execute("SELECT * FROM 'history.parquet' ORDER BY index ASC").fetchall()
                 con.close()
-                
-               
                 for row in result:
                     loaded_data.append({
                         "index": row[0],
@@ -240,7 +231,6 @@ class CalculatorApp(ft.Container):
             except Exception as e:
                 print(f"Parquet Load Error: {e}")
 
-       
         if not loaded_data and self.page:
             try:
                 if self.page.client_storage.contains_key("calc_history"):
@@ -248,20 +238,13 @@ class CalculatorApp(ft.Container):
             except Exception:
                 pass
 
-      
         if loaded_data:
             self.history_data = loaded_data
-            
-          
             self.history_list.controls.clear()
             max_index = 0
-            
-         
             for item in self.history_data:
                 if item['index'] > max_index:
                     max_index = item['index']
-                
-             
                 history_item = HistoryItem(
                     index=item['index'],
                     timestamp=item['timestamp'],
@@ -269,9 +252,7 @@ class CalculatorApp(ft.Container):
                     result=item['result'],
                     on_delete=self.delete_history_item
                 )
-              
                 self.history_list.controls.insert(0, history_item)
-            
             self.history_counter = max_index + 1
             self.update()
 
@@ -282,10 +263,26 @@ class CalculatorApp(ft.Container):
         e.control.icon = ft.Icons.CALCULATE if not is_history_visible else ft.Icons.HISTORY
         self.update()
 
+    def toggle_theme(self, e):
+        if self.page.theme_mode == ft.ThemeMode.DARK:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+            self.bgcolor = ft.Colors.BLUE_GREY_50
+            e.control.icon = ft.Icons.DARK_MODE
+            e.control.icon_color = ft.Colors.BLACK
+            self.expression_display.color = ft.Colors.BLACK54
+            self.result.color = ft.Colors.BLACK
+        else:
+            self.page.theme_mode = ft.ThemeMode.DARK
+            self.bgcolor = ft.Colors.BLACK
+            e.control.icon = ft.Icons.LIGHT_MODE
+            e.control.icon_color = ft.Colors.WHITE
+            self.expression_display.color = ft.Colors.WHITE54
+            self.result.color = ft.Colors.WHITE
+        self.page.update()
+        self.update()
+
     def add_history_entry(self, expression, result):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-     
         entry_data = {
             "index": self.history_counter,
             "timestamp": now,
@@ -293,8 +290,6 @@ class CalculatorApp(ft.Container):
             "result": result
         }
         self.history_data.append(entry_data)
-        
-  
         item = HistoryItem(
             index=self.history_counter,
             timestamp=now,
@@ -305,22 +300,16 @@ class CalculatorApp(ft.Container):
         self.history_list.controls.insert(0, item)
         self.history_counter += 1
         
-     
         if len(self.history_list.controls) > 10:
             self.history_list.controls.pop()
-          
             if self.history_data:
                 self.history_data.pop(0)
-
-      
         self.save_history_data()
 
     def delete_history_item(self, task_control):
         self.history_list.controls.remove(task_control)
-    
         self.history_data = [d for d in self.history_data if d['index'] != task_control.index]
         self.update()
-    
         self.save_history_data()
 
     def format_thousands(self, value):
@@ -336,7 +325,9 @@ class CalculatorApp(ft.Container):
             return value
 
     def button_clicked(self, e):
-        data = e.control.content
+        self.handle_input(e.control.content)
+
+    def handle_input(self, data):
         if data == "AC":
             self.reset()
         elif data == "CE": 
@@ -355,26 +346,45 @@ class CalculatorApp(ft.Container):
             else:
                 clean_current = clean_current + data
             self.result.value = self.format_thousands(clean_current)
-        elif data in ("sin", "cos", "tan", "√"):
-            func_map = {"√": "sqrt"}
+        elif data in ("π", "e"): 
+            val_map = {"π": "pi", "e": "E"}
+            clean_current = str(self.result.value).replace(" ", "")
+            
+            if clean_current == "0" or self.new_operand:
+                self.result.value = data 
+                self.current_expression += val_map[data]
+            else:
+                self.current_expression += "*" + val_map[data]
+                self.result.value = clean_current + data
+            
+            self.expression_display.value = self.current_expression
+            self.new_operand = True
+        elif data in ("sin", "cos", "tan", "√", "ln"): 
+            func_map = {"√": "sqrt", "ln": "log"} 
             func_name = func_map.get(data, data)
             self.current_expression += f"{func_name}("
             self.expression_display.value = self.current_expression
             self.new_operand = True
-        elif data in ("(", ")"):
+        elif data in ("(", ")", "^"):
             clean_current = str(self.result.value).replace(" ", "")
+            if "π" in clean_current or "e" in clean_current:
+                clean_current = "" 
+
             if data == "(":
                 self.current_expression += "("
                 self.new_operand = True
-            elif data == ")":
+            elif data in (")", "^"):
                 if self.current_expression.endswith(")"):
-                     self.current_expression += ")"
+                     self.current_expression += data
                 else:
-                     self.current_expression += clean_current + ")"
+                     self.current_expression += clean_current + data
                 self.new_operand = True
             self.expression_display.value = self.current_expression
         elif data in ("+", "-", "*", "/"):
             clean_current = str(self.result.value).replace(" ", "")
+            if "π" in clean_current or "e" in clean_current:
+                clean_current = ""
+
             if self.current_expression.endswith(")"):
                 self.current_expression += data
             else:
@@ -383,10 +393,14 @@ class CalculatorApp(ft.Container):
             self.new_operand = True 
         elif data == "=":
             clean_current = str(self.result.value).replace(" ", "")
+            if "π" in clean_current or "e" in clean_current:
+                clean_current = ""
+
             if self.current_expression.endswith(")"):
                 final_expression = self.current_expression
             else:
                 final_expression = self.current_expression + clean_current
+            
             open_count = final_expression.count("(")
             close_count = final_expression.count(")")
             final_expression += ")" * (open_count - close_count)
@@ -396,17 +410,23 @@ class CalculatorApp(ft.Container):
             self.new_operand = True
         elif data == "%":
             clean_current = str(self.result.value).replace(" ", "")
-            val = float(clean_current) / 100
-            self.result.value = self.format_number(val)
+            try:
+                val = float(clean_current) / 100
+                self.result.value = self.format_number(val)
+            except ValueError:
+                pass
         elif data == "+/-":
             clean_current = str(self.result.value).replace(" ", "")
-            if float(clean_current) > 0:
-                val = "-" + clean_current
-            elif float(clean_current) < 0:
-                val = str(abs(float(clean_current)))
-            else:
-                val = clean_current
-            self.result.value = self.format_thousands(val)
+            try:
+                if float(clean_current) > 0:
+                    val = "-" + clean_current
+                elif float(clean_current) < 0:
+                    val = str(abs(float(clean_current)))
+                else:
+                    val = clean_current
+                self.result.value = self.format_thousands(val)
+            except ValueError:
+                pass
         self.update()
 
     def format_number(self, num):
@@ -417,11 +437,14 @@ class CalculatorApp(ft.Container):
 
     def calculate_result(self, expression):
         try:
-            expr = sympify(expression)
+            safe_expr = expression.replace("^", "**")
+            expr = sympify(safe_expr)
             result_val = N(expr)
             final_val = self.format_number(float(result_val))
             formatted_result = self.format_thousands(final_val)
-            self.add_history_entry(expression, formatted_result)
+            pretty_expr = expression.replace("pi", "π").replace("E", "e").replace("**", "^")
+            self.add_history_entry(pretty_expr, formatted_result)
+            
             self.result.value = formatted_result
         except Exception as e:
             print(f"Error: {e}")
@@ -434,12 +457,13 @@ class CalculatorApp(ft.Container):
         if hasattr(self, 'result'): self.result.value = "0"
         if hasattr(self, 'expression_display'): self.expression_display.value = ""
 
+
 def main(page: ft.Page):
     page.title = "Calc Pro with DuckDB"
     page.bgcolor = ft.Colors.BLACK
+    page.theme_mode = ft.ThemeMode.DARK
     page.scroll = "adaptive"
 
-  
     def window_event(e):
         if e.data == "close":
             os._exit(0)
@@ -447,10 +471,42 @@ def main(page: ft.Page):
     page.window_prevent_close = True
     page.on_window_event = window_event
     
-    
     calc = CalculatorApp()
+    
+    def on_keyboard(e: ft.KeyboardEvent):
+        val = e.key
+        
+        if e.shift:
+            shift_map = {
+                "8": "*",
+                "=": "+",
+                "+": "+", 
+                "6": "^",
+                "9": "(",
+                "0": ")"
+            }
+            if e.key in shift_map:
+                val = shift_map[e.key]
+                
+        key_map = {
+            "Enter": "=", 
+            "Backspace": "⬅", 
+            "Escape": "AC", 
+            "Delete": "CE",
+            "p": "π",  
+            "e": "e",  
+            "l": "ln"  
+        }
+        if val in key_map:
+            val = key_map[val]
+            
+        valid_inputs = ["0","1","2","3","4","5","6","7","8","9",".","+","-","*","/","(",")","=","⬅","AC","CE","^", "π", "e", "ln"]
+        if val in valid_inputs:
+            calc.handle_input(val)
+            page.update()
+
+    page.on_keyboard_event = on_keyboard
     page.add(calc)
 
 if __name__ == "__main__":
-    
     ft.run(main)
