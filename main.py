@@ -64,6 +64,7 @@ class HistoryItem(ft.Container):
     def delete_clicked(self, e):
         self.on_delete(self)
 
+#BUTTON CLASSES 
 @ft.control
 class CalcButton(ft.Button):
     expand: int = field(default_factory=lambda: 1)
@@ -88,6 +89,7 @@ class SciButton(CalcButton):
     bgcolor: ft.Colors = ft.Colors.BLUE_GREY_900
     color: ft.Colors = ft.Colors.WHITE
 
+#MAIN APP CLASS
 class CalculatorApp(ft.Container):
     def __init__(self):
         super().__init__()
@@ -112,6 +114,7 @@ class CalculatorApp(ft.Container):
                     SciButton(content="ln", on_click=self.button_clicked),
                     SciButton(content="^", on_click=self.button_clicked), 
                     SciButton(content="√", on_click=self.button_clicked),
+                    SciButton(content="^", on_click=self.button_clicked), # Power button
                 ]),
                 ft.Row(controls=[
                     SciButton(content="sin", on_click=self.button_clicked),
@@ -171,6 +174,7 @@ class CalculatorApp(ft.Container):
                 ft.Row(
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     controls=[
+
                         ft.IconButton(
                             icon=ft.Icons.LIGHT_MODE, 
                             icon_color=ft.Colors.WHITE,
@@ -501,6 +505,7 @@ def main(page: ft.Page):
             val = key_map[val]
             
         valid_inputs = ["0","1","2","3","4","5","6","7","8","9",".","+","-","*","/","(",")","=","⬅","AC","CE","^", "π", "e", "ln"]
+
         if val in valid_inputs:
             calc.handle_input(val)
             page.update()
